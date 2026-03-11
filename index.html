@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charge Memo Generator V12 - Badvel Rural Circle</title>
+    <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body { font-family: 'Trebuchet MS', sans-serif; padding: 20px; background-color: #f0f2f5; line-height: 1.5; }
+        .container { max-width: 850px; margin: auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .input-section { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ced4da; }
+        h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 10px; margin-top: 0; }
+        label { font-weight: bold; display: block; margin-top: 10px; }
+        input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; font-family: 'Trebuchet MS', sans-serif; }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 15px; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; transition: 0.3s; font-family: 'Trebuchet MS', sans-serif; }
+        .btn-generate { background: #003366; color: white; }
+        .btn-polish { background: #6c757d; color: white; }
+        .btn-download { background: #28a745; color: white; display: none; }
+        .output-box { border: 2px solid #000; padding: 40px; margin-top: 30px; display: none; background: white; color: black; }
+        .page-header { text-align: left; margin-bottom: 20px; font-weight: bold; }
+        .header-right { float: right; text-align: right; }
+        .page-title { text-align: center; text-decoration: underline; font-weight: bold; margin-bottom: 20px; font-size: 1.2rem; }
+        .signature { margin-top: 40px; text-align: right; font-weight: bold; }
+        .footer-to { margin-top: 30px; font-weight: bold; white-space: pre-wrap; }
+        .page-break { border-top: 3px dashed #666; margin: 60px 0; text-align: center; color: #666; font-size: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Inspector's Professional Memo Tool V12</h2>
+    <div class="input-section">
+        <label>C.No. Number (Editable Only)</label>
+        <div style="display:flex; align-items:center; gap:5px;">
+            <strong>C.No.</strong>
+            <input type="text" id="cNoVal" style="width: 60px;" placeholder="2">
+            <strong>/MPR/CI-BDL-R/2026</strong>
+        </div>
+
+        <label>Date of Charge Memo</label>
+        <input type="date" id="docDate">
+
+        <label>Officer Details (e.g., Sri. V. VENKATESWARLU, PC 1234)</label>
+        <input type="text" id="offName" placeholder="Sri. V. VENKATESWARLU, PC 1234">
+        
+        <label>Station (e.g., ATLUR P.S.)</label>
+        <input type="text" id="station" placeholder="ATLUR P.S.">
+
+        <label>Special Duty (e.g., Court PC / CCTNS)</label>
+        <input type="text" id="specialDuty" placeholder="e.g., Court PC">
+
+        <label>S.I. Station for Service (e.g., S.I. Atlur P.S.)</label>
+        <input type="text" id="siStation" placeholder="S.I. Atlur P.S.">
+
+        <label>Narrative Charge (Page 2 - First Person)</label>
+        <textarea id="narrative" rows="5" placeholder="You left the P.S. without permission..."></textarea>
+        
+        <div class="btn-group">
+            <button class="btn-polish" onclick="polishText()">✨ Polish Text</button>
+            <button class="btn-generate" onclick="generateFullMemo()">📄 Preview All Pages</button>
+            <button id="downloadBtn" class="btn-download" onclick="downloadWordDoc()">💾 Download .docx</button>
+        </div>
+    </div>
+
+    <div id="output" class="output-box">
+        <div id="previewArea"></div>
+    </div>
+</div>
+
+<script>
+    function polishText() {
+        let text = document.getElementById('narrative').value;
+        if (!text) return;
+        text = text.trim().charAt(0).toUpperCase() + text.slice(1);
+        text = text.replace(/\bps\b/gi, "P.S.").replace(/\bsho\b/gi, "S.H.O.").replace(/\bsi\b/gi, "S.I.");
+        text = text.replace(/without permission/gi, "without any prior permission or intimation");
+        if (!text.endsWith('.')) text += '.';
+        document.getElementById('narrative').value = text;
+    }
+
+    function generateFullMemo() {
+        const no = document.getElementById('cNoVal').value;
+        const cnoFull = "C.No. " + no + "/MPR/CI-BDL-R/2026";
+        const dateRaw = document.getElementById('docDate').value;
+        if (!dateRaw) { alert("Please select a date."); return; }
+        const dateStr = dateRaw.split('-').reverse().join('.');
+        const name = document.getElementById('offName').value;
+        const station = document.getElementById('station').value;
+        const si = document.getElementById('siStation').value;
+        const narrative = document.getElementById('narrative').value;
+        const sDuty = document.getElementById('specialDuty').value;
+
+        const d = new Date(dateRaw);
+        d.setDate(d.getDate() + 20);
+        const reminderDate = d.toLocaleDateString('en-GB').replace(/\//g, '.');
+
+        const header = `<div class="page-header">${cnoFull} <div class="header-right">Office of the Inspector of Police,<br>Badvel Rural Circle, Dt. ${dateStr}</div></div>`;
+        const signature = `<div class="signature">Inspector of Police,<br>Badvel Rural Circle</div>`;
+        const serviceBlock = `<div class="footer-to">To:<br>${name} of ${station}, through ${si}, for service and to return the served copy.<br><br>Copy submitted to:<br>1. The Superintendent of Police, YSR District, Kadapa, for favor of information and to assign the PR Number.<br>2. The SDPO, Mydukur, for favor of information.</div>`;
+
+        let content = `
+            ${header}<div class="page-title">Memorandum of Charge</div>
+            <p>1) ${name} of ${station} is hereby informed that it is proposed to take action against him under Rule 22 of the Andhra Pradesh Civil Services (Classification, Control, and Appeal) Rules, 1991.</p>
+            <p>2) A statement of imputations of misconduct and neglect on which action is proposed to be taken as mentioned is enclosed herewith.</p>
+            <p>3) ${name} of ${station} is hereby given an opportunity to make such representation as he may wish to make against the proposal.</p>
+            <p>4) If ${name} of ${station} fails to submit his representation within 10 days of the receipt of this memorandum, it will be construed that he has no representation to make, and orders will be passed against him.</p>
+            <p>5) The receipt of this memorandum should be acknowledged by ${name} of ${station}.</p>
+            ${signature}${serviceBlock}
+            <div class="page-break">PAGE 2</div>
+            ${header}<div class="page-title">STATEMENT OF IMPUTATIONS</div>
+            <p>You, ${name}, are working in ${station}. ${sDuty ? 'Specifically entrusted with ' + sDuty + ' duties.' : ''}</p>
+            <p style="white-space: pre-wrap;">${narrative}</p>
+            <p>Furthermore, your conduct and negligent attitude caused unnecessary burden to the remaining staff of the Police Station and significantly disrupted the smooth functioning of station administration and legitimate police work. It proves your highly indisciplined attitude and lack of commitment toward your assigned responsibilities.</p>
+            <p>By the above-mentioned acts, you have exhibited gross negligence and lack of devotion towards your duties and it proves highly indiscipline by you, so as to why suitable disciplinary action should not be taken against you for your above delinquency.</p>
+            <p><b>Hence the charge.</b></p>${signature}
+            <div class="page-break">PAGE 3</div>
+            <div class="footer-to">To<br>The Superintendent of Police,<br>YSR District, Kadapa.<br><br>Sir,</div>
+            <div style="padding-left: 40px;">
+                <strong>Sub:-</strong> Police – MPR – Memorandum of Charge against ${name} of ${station} - Request to assign PR Number – Reg.<br>
+                <strong>Ref:-</strong> ${cnoFull}, Dt. ${dateStr} of Inspector of Police, Badvel Rural.<br><br>
+                I submit that, ${name} of ${station} has exhibited gross dereliction of duty, negligence, and lack of devotion towards his legitimate duties. Specifically, ${narrative.replace(/\byou\b/gi, "he").replace(/\byour\b/gi, "his")}<br><br>
+                Hence, I request the benign officer to assign the PR number so as to enable to dispose of the above memorandum of charge against the delinquent officer and oblige.
+            </div>
+            <div class="signature" style="text-align: right; margin-top: 60px;">Yours faithfully,<br><br><br>Inspector of Police,<br>Badvel Rural Circle.</div>
+            <div class="page-break">PAGE 4</div>
+            <div class="page-header">${cnoFull} <div class="header-right">Office of the Inspector of Police,<br>Badvel Rural Circle, Dt. ${reminderDate}</div></div>
+            <div class="page-title">REMINDER-1</div>
+            <p><b>Sub:</b> Police – Badvel Rural Circle – Charge memo issued to ${name} of ${station} – Pending explanation – Reminder issued - Reg.</p>
+            <p><b>Ref:</b> Charge memo issued vide ${cnoFull}, Dt. ${dateStr}.</p>
+            <p>A charge memo was issued to you vide the reference cited for your gross dereliction of duty, in which your explanation was called for within 10 days of the receipt.</p>
+            <p>You have acknowledged the receipt of the Charge Memo. But so far, you have not submitted any explanation regarding the imputations made against you, even after passing 20 days.</p>
+            <p>On humanitarian grounds, you are hereby given a final opportunity to submit your explanation within a week. If you fail, it will be construed that you have no representation to make, and orders will be passed against you.</p>
+            <p>Please acknowledge the receipt of this reminder.</p>
+            ${signature}${serviceBlock}
+        `;
+        document.getElementById('previewArea').innerHTML = content;
+        document.getElementById('output').style.display = 'block';
+        document.getElementById('downloadBtn').style.display = 'block';
+    }
+
+    async function downloadWordDoc() {
+        const { Document, Packer, Paragraph, TextRun, AlignmentType, PageBreak } = docx;
+        
+        const no = document.getElementById('cNoVal').value;
+        const cnoFull = "C.No. " + no + "/MPR/CI-BDL-R/2026";
+        const dateRaw = document.getElementById('docDate').value;
+        if (!dateRaw) { alert("Please generate preview first."); return; }
+        const dateStr = dateRaw.split('-').reverse().join('.');
+        const name = document.getElementById('offName').value;
+        const station = document.getElementById('station').value;
+        const narrative = document.getElementById('narrative').value;
+        const si = document.getElementById('siStation').value;
+        const sDuty = document.getElementById('specialDuty').value;
+
+        const d = new Date(dateRaw);
+        d.setDate(d.getDate() + 20);
+        const reminderDate = d.toLocaleDateString('en-GB').replace(/\//g, '.');
+
+        const font = "Trebuchet MS";
+        const size = 24; // 12pt (half-points)
+
+        const createHeader = (dStr) => [
+            new Paragraph({
+                children: [
+                    new TextRun({ text: cnoFull, bold: true, font, size }),
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [
+                    new TextRun({ text: "Office of the Inspector of Police,", bold: true, font, size }),
+                    new TextRun({ text: `Badvel Rural Circle, Dt. ${dStr}`, bold: true, font, size, break: 1 })
+                ]
+            })
+        ];
+
+        const createSignature = () => new Paragraph({
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 400 },
+            children: [
+                new TextRun({ text: "Inspector of Police,", bold: true, font, size }),
+                new TextRun({ text: "Badvel Rural Circle", bold: true, font, size, break: 1 })
+            ]
+        });
+
+        const doc = new Document({
+            sections: [{
+                properties: { 
+                    page: { 
+                        margin: { top: 720, bottom: 720, left: 1134, right: 850 } // 2 cm left, 1.5 cm right
+                    } 
+                },
+                children: [
+                    // PAGE 1
+                    ...createHeader(dateStr),
+                    new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 400, after: 400 },
+                        children: [new TextRun({ text: "Memorandum of Charge", bold: true, underline: {}, font, size: 28 })]
+                    }),
+                    new Paragraph({ children: [new TextRun({ text: `1) ${name} of ${station} is hereby informed that it is proposed to take action against him under Rule 22 of the Andhra Pradesh Civil Services (Classification, Control, and Appeal) Rules, 1991.`, font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "2) A statement of imputations of misconduct and neglect on which action is proposed to be taken as mentioned is enclosed herewith.", font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: `3) ${name} of ${station} is hereby given an opportunity to make such representation as he may wish to make against the proposal.`, font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: `4) If ${name} of ${station} fails to submit his representation within 10 days of the receipt of this memorandum, it will be construed that he has no representation to make, and orders will be passed against him.`, font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: `5) The receipt of this memorandum should be acknowledged by ${name} of ${station}.`, font, size })], spacing: { after: 200 } }),
+                    
+                    createSignature(),
+                    
+                    new Paragraph({
+                        spacing: { before: 400 },
+                        children: [
+                            new TextRun({ text: "To:", bold: true, font, size }),
+                            new TextRun({ text: `${name} of ${station}, through ${si}, for service and to return the served copy.`, bold: true, font, size, break: 1 }),
+                            new TextRun({ text: "Copy submitted to:", bold: true, font, size, break: 2 }),
+                            new TextRun({ text: "1. The Superintendent of Police, YSR District, Kadapa, for favor of information and to assign the PR Number.", bold: true, font, size, break: 1 }),
+                            new TextRun({ text: "2. The SDPO, Mydukur, for favor of information.", bold: true, font, size, break: 1 })
+                        ]
+                    }),
+                    new Paragraph({ children: [new PageBreak()] }),
+
+                    // PAGE 2
+                    ...createHeader(dateStr),
+                    new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 400, after: 400 },
+                        children: [new TextRun({ text: "STATEMENT OF IMPUTATIONS", bold: true, underline: {}, font, size: 28 })]
+                    }),
+                    new Paragraph({ children: [new TextRun({ text: `You, ${name}, are working in ${station}. ${sDuty ? 'Specifically entrusted with ' + sDuty + ' duties.' : ''}`, font, size })], spacing: { after: 200 } }),
+                    ...narrative.split('\n').map(line => new Paragraph({ children: [new TextRun({ text: line, font, size })], spacing: { after: 100 } })),
+                    new Paragraph({ children: [new TextRun({ text: "Furthermore, your conduct and negligent attitude caused unnecessary burden to the remaining staff of the Police Station and significantly disrupted the smooth functioning of station administration and legitimate police work. It proves your highly indisciplined attitude and lack of commitment toward your assigned responsibilities.", font, size })], spacing: { before: 100, after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "By the above-mentioned acts, you have exhibited gross negligence and lack of devotion towards your duties and it proves highly indiscipline by you, so as to why suitable disciplinary action should not be taken against you for your above delinquency.", font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "Hence the charge.", bold: true, font, size })], spacing: { after: 200 } }),
+                    
+                    createSignature(),
+                    new Paragraph({ children: [new PageBreak()] }),
+
+                    // PAGE 3
+                    new Paragraph({
+                        spacing: { before: 400 },
+                        children: [
+                            new TextRun({ text: "To", bold: true, font, size }),
+                            new TextRun({ text: "The Superintendent of Police,", bold: true, font, size, break: 1 }),
+                            new TextRun({ text: "YSR District, Kadapa.", bold: true, font, size, break: 1 })
+                        ]
+                    }),
+                    new Paragraph({ children: [new TextRun({ text: "Sir,", font, size })], spacing: { before: 400, after: 400 } }),
+                    new Paragraph({
+                        indent: { left: 720 },
+                        children: [
+                            new TextRun({ text: "Sub:- ", bold: true, font, size }),
+                            new TextRun({ text: `Police – MPR – Memorandum of Charge against ${name} of ${station} - Request to assign PR Number – Reg.`, font, size })
+                        ],
+                        spacing: { after: 200 }
+                    }),
+                    new Paragraph({
+                        indent: { left: 720 },
+                        children: [
+                            new TextRun({ text: "Ref:- ", bold: true, font, size }),
+                            new TextRun({ text: `${cnoFull}, Dt. ${dateStr} of Inspector of Police, Badvel Rural.`, font, size })
+                        ],
+                        spacing: { after: 400 }
+                    }),
+                    new Paragraph({
+                        indent: { left: 720 },
+                        children: [
+                            new TextRun({ text: `I submit that, ${name} of ${station} has exhibited gross dereliction of duty, negligence, and lack of devotion towards his legitimate duties. Specifically, ${narrative.replace(/\byou\b/gi, "he").replace(/\byour\b/gi, "his")}. In this connection, a charge memorandum vide reference cited above has been issued to him.`, font, size })
+                        ],
+                        spacing: { after: 200 }
+                    }),
+                    new Paragraph({
+                        indent: { left: 720 },
+                        children: [
+                            new TextRun({ text: "Hence, I request the benign officer to assign the PR number so as to enable to dispose of the above memorandum of charge against the delinquent officer and oblige.", font, size })
+                        ],
+                        spacing: { after: 400 }
+                    }),
+                    new Paragraph({
+                        alignment: AlignmentType.RIGHT,
+                        spacing: { before: 800 },
+                        children: [
+                            new TextRun({ text: "Yours faithfully,", font, size }),
+                            new TextRun({ text: "Inspector of Police,", bold: true, font, size, break: 3 }),
+                            new TextRun({ text: "Badvel Rural Circle.", bold: true, font, size, break: 1 })
+                        ]
+                    }),
+                    new Paragraph({ children: [new PageBreak()] }),
+
+                    // PAGE 4
+                    ...createHeader(reminderDate),
+                    new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 400, after: 400 },
+                        children: [new TextRun({ text: "REMINDER-1", bold: true, underline: {}, font, size: 28 })]
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: "Sub: ", bold: true, font, size }),
+                            new TextRun({ text: `Police – Badvel Rural Circle – Charge memo issued to ${name} of ${station} – Pending explanation – Reminder issued - Reg.`, font, size })
+                        ],
+                        spacing: { after: 200 }
+                    }),
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: "Ref: ", bold: true, font, size }),
+                            new TextRun({ text: `Charge memo issued vide ${cnoFull}, Dt. ${dateStr}.`, font, size })
+                        ],
+                        spacing: { after: 400 }
+                    }),
+                    new Paragraph({ children: [new TextRun({ text: "A charge memo was issued to you vide the reference cited for your gross dereliction of duty, in which your explanation was called for within 10 days of the receipt.", font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "You have acknowledged the receipt of the Charge Memo. But so far, you have not submitted any explanation regarding the imputations made against you, even after passing 20 days.", font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "On humanitarian grounds, you are hereby given a final opportunity to submit your explanation within a week. If you fail, it will be construed that you have no representation to make, and orders will be passed against you.", font, size })], spacing: { after: 200 } }),
+                    new Paragraph({ children: [new TextRun({ text: "Please acknowledge the receipt of this reminder.", font, size })], spacing: { after: 200 } }),
+                    
+                    createSignature(),
+                    
+                    new Paragraph({
+                        spacing: { before: 400 },
+                        children: [
+                            new TextRun({ text: "To:", bold: true, font, size }),
+                            new TextRun({ text: `${name} of ${station}, through ${si}, for service and to return the served copy.`, bold: true, font, size, break: 1 }),
+                            new TextRun({ text: "Copy submitted to:", bold: true, font, size, break: 2 }),
+                            new TextRun({ text: "1. The Superintendent of Police, YSR District, Kadapa, for favor of information and to assign the PR Number.", bold: true, font, size, break: 1 }),
+                            new TextRun({ text: "2. The SDPO, Mydukur, for favor of information.", bold: true, font, size, break: 1 })
+                        ]
+                    })
+                ]
+            }]
+        });
+
+        Packer.toBlob(doc).then(blob => { 
+            saveAs(blob, `Charge_Memo_Full_${name.replace(/\s+/g, '_')}.docx`); 
+        }).catch(err => {
+            alert("Error generating document: " + err.message);
+        });
+    }
+</script>
+</body>
+</html>
