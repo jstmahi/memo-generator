@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charge Memo Generator V12 - Badvel Rural Circle</title>
+    <title>Charge Memo Generator V13 - Badvel Rural Circle</title>
     <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: 'Trebuchet MS', sans-serif; padding: 20px; background-color: #f0f2f5; line-height: 1.5; }
         .container { max-width: 850px; margin: auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .database-section { background: #d4edda; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c3e6cb; display: flex; gap: 10px; align-items: center;}
+        .database-section select { flex: 1; padding: 10px; font-family: 'Trebuchet MS', sans-serif; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-load { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-family: 'Trebuchet MS', sans-serif;}
         .input-section { background: #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ced4da; }
         h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 10px; margin-top: 0; }
         label { font-weight: bold; display: block; margin-top: 10px; }
@@ -17,7 +21,7 @@
         button { flex: 1; padding: 15px; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; transition: 0.3s; font-family: 'Trebuchet MS', sans-serif; }
         .btn-generate { background: #003366; color: white; }
         .btn-polish { background: #6c757d; color: white; }
-        .btn-download { background: #28a745; color: white; display: none; }
+        .btn-download { background: #000000; color: white; display: none; }
         .output-box { border: 2px solid #000; padding: 40px; margin-top: 30px; display: none; background: white; color: black; }
         .page-header { text-align: left; margin-bottom: 20px; font-weight: bold; }
         .header-right { float: right; text-align: right; }
@@ -30,7 +34,16 @@
 <body>
 
 <div class="container">
-    <h2>Inspector's Professional Memo Tool V12</h2>
+    <h2>Inspector's Professional Memo Tool V13</h2>
+
+    <div class="database-section">
+        <label style="margin-top: 0;">🔍 Load Past Memo:</label>
+        <select id="pastMemosDropdown">
+            <option value="">Select a previously saved memo...</option>
+        </select>
+        <button class="btn-load" onclick="loadMemo()">Load Data</button>
+    </div>
+
     <div class="input-section">
         <label>C.No. Number (Editable Only)</label>
         <div style="display:flex; align-items:center; gap:5px;">
@@ -60,7 +73,7 @@
         <div class="btn-group">
             <button class="btn-polish" onclick="polishText()">✨ Polish Text</button>
             <button class="btn-generate" onclick="generateFullMemo()">📄 Preview All Pages</button>
-            <button id="downloadBtn" class="btn-download" onclick="downloadWordDoc()">💾 Download .docx</button>
+            <button id="downloadBtn" class="btn-download" onclick="downloadWordDoc()">💾 Download & Save to Cloud</button>
         </div>
     </div>
 
@@ -70,6 +83,77 @@
 </div>
 
 <script>
+    // --- 1. SUPABASE DATABASE SETUP ---
+    const { createClient } = supabase;
+    const supabaseUrl = 'https://ifqodnspngxawuemgbry.supabase.co'; 
+    const supabaseKey = 'sb_publishable_alrgRKRYmuunXDVArXCYNw_KPd9JqWZ';
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+    // --- 2. LOCAL AUTO-SAVE ---
+    const formFields = ['cNoVal', 'docDate', 'offName', 'station', 'specialDuty', 'siStation', 'narrative'];
+
+    window.addEventListener('DOMContentLoaded', () => {
+        formFields.forEach(id => {
+            const savedData = localStorage.getItem('draft_' + id);
+            if (savedData) document.getElementById(id).value = savedData;
+        });
+        fetchPastMemos();
+    });
+
+    formFields.forEach(id => {
+        document.getElementById(id).addEventListener('input', function() {
+            localStorage.setItem('draft_' + id, this.value);
+        });
+    });
+
+    // --- 3. DATABASE FUNCTIONS ---
+    async function fetchPastMemos() {
+        if(supabaseUrl === 'PASTE_YOUR_PROJECT_URL_HERE') return; 
+        
+        const { data, error } = await supabaseClient.from('memos').select('*').order('created_at', { ascending: false });
+        if (data) {
+            const dropdown = document.getElementById('pastMemosDropdown');
+            dropdown.innerHTML = '<option value="">Select a previously saved memo...</option>';
+            data.forEach(memo => {
+                const option = document.createElement('option');
+                option.value = JSON.stringify(memo);
+                option.text = `C.No: ${memo.c_no} - ${memo.officer_name} (${memo.memo_date})`;
+                dropdown.appendChild(option);
+            });
+        }
+    }
+
+    function loadMemo() {
+        const selected = document.getElementById('pastMemosDropdown').value;
+        if (!selected) return;
+        const memo = JSON.parse(selected);
+        document.getElementById('cNoVal').value = memo.c_no || '';
+        document.getElementById('docDate').value = memo.memo_date || '';
+        document.getElementById('offName').value = memo.officer_name || '';
+        document.getElementById('station').value = memo.station || '';
+        document.getElementById('specialDuty').value = memo.special_duty || '';
+        document.getElementById('siStation').value = memo.si_station || '';
+        document.getElementById('narrative').value = memo.narrative || '';
+    }
+
+    async function saveMemoToDatabase() {
+        if(supabaseUrl === 'PASTE_YOUR_PROJECT_URL_HERE') return; 
+        
+        const dataToSave = {
+            c_no: document.getElementById('cNoVal').value,
+            memo_date: document.getElementById('docDate').value,
+            officer_name: document.getElementById('offName').value,
+            station: document.getElementById('station').value,
+            special_duty: document.getElementById('specialDuty').value,
+            si_station: document.getElementById('siStation').value,
+            narrative: document.getElementById('narrative').value
+        };
+
+        await supabaseClient.from('memos').insert([dataToSave]);
+        fetchPastMemos(); 
+    }
+
+    // --- 4. CORE MEMO FUNCTIONS ---
     function polishText() {
         let text = document.getElementById('narrative').value;
         if (!text) return;
@@ -78,6 +162,7 @@
         text = text.replace(/without permission/gi, "without any prior permission or intimation");
         if (!text.endsWith('.')) text += '.';
         document.getElementById('narrative').value = text;
+        localStorage.setItem('draft_narrative', text); 
     }
 
     function generateFullMemo() {
@@ -159,7 +244,7 @@
         const reminderDate = d.toLocaleDateString('en-GB').replace(/\//g, '.');
 
         const font = "Trebuchet MS";
-        const size = 24; // 12pt (half-points)
+        const size = 24; 
 
         const createHeader = (dStr) => [
             new Paragraph({
@@ -189,7 +274,7 @@
             sections: [{
                 properties: { 
                     page: { 
-                        margin: { top: 720, bottom: 720, left: 1134, right: 850 } // 2 cm left, 1.5 cm right
+                        margin: { top: 720, bottom: 720, left: 1134, right: 850 } 
                     } 
                 },
                 children: [
@@ -331,6 +416,7 @@
 
         Packer.toBlob(doc).then(blob => { 
             saveAs(blob, `Charge_Memo_Full_${name.replace(/\s+/g, '_')}.docx`); 
+            saveMemoToDatabase();
         }).catch(err => {
             alert("Error generating document: " + err.message);
         });
